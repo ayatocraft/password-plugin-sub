@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -9,15 +10,37 @@
     font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     padding: 20px;
   }
+
   input, button {
     padding: 8px;
     margin: 4px 0;
+  }
+
+  /* プラグイン表示用オーバーレイ */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .overlay.show {
+    display: flex;
+  }
+
+  iframe {
+    width: 360px;
+    height: 240px;
+    border: none;
   }
 </style>
 </head>
 <body>
 
-<h2>パスワード設定（親HTML）</h2>
+<h2>親HTML（管理画面）</h2>
 
 <input id="pwInput" placeholder="パスワードを設定">
 <br>
@@ -26,29 +49,31 @@
 
 <hr>
 
-<iframe
-  id="passwordPlugin"
-  src="https://plugin.example.com/password-widget.html"
-  style="width:360px;height:240px;border:none;">
-</iframe>
+<button onclick="openLock()">🔒 ロックを表示</button>
+
+<!-- プラグイン表示エリア -->
+<div class="overlay" id="overlay">
+  <iframe
+    id="passwordPlugin"
+    src="https://plugin.example.com/password-widget.html">
+  </iframe>
+</div>
 
 <script>
-  const iframe = document.getElementById("passwordPlugin");
-  const PLUGIN_ORIGIN = "https://plugin.example.com";
-  const STORAGE_KEY = "password-lock-value";
+  const overlay = document.getElementById("overlay");
+  const iframe  = document.getElementById("passwordPlugin");
 
-  // 起動時：保存済みパスワードをUIへ
+  const PLUGIN_ORIGIN = "https://plugin.example.com";
+  const STORAGE_KEY  = "password-lock-value";
+
+  // 起動時：保存済みパスワードを復元
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) pwInput.value = saved;
 
   function savePassword() {
     const pw = pwInput.value;
     localStorage.setItem(STORAGE_KEY, pw);
-
-    iframe.contentWindow.postMessage(
-      { type: "init", password: pw },
-      PLUGIN_ORIGIN
-    );
+    sendPassword(pw);
   }
 
   function clearPassword() {
@@ -56,15 +81,29 @@
     pwInput.value = "";
   }
 
-  // iframeが読み込まれたら自動送信（再読込対策）
+  function openLock() {
+    overlay.classList.add("show");
+
+    // iframeが既に読み込まれている場合にも送る
+    const pw = localStorage.getItem(STORAGE_KEY);
+    if (pw) sendPassword(pw);
+  }
+
+  function closeLock() {
+    overlay.classList.remove("show");
+  }
+
+  function sendPassword(pw) {
+    iframe.contentWindow.postMessage(
+      { type: "init", password: pw },
+      PLUGIN_ORIGIN
+    );
+  }
+
+  // iframeロード時（初回対策）
   iframe.addEventListener("load", () => {
     const pw = localStorage.getItem(STORAGE_KEY);
-    if (pw) {
-      iframe.contentWindow.postMessage(
-        { type: "init", password: pw },
-        PLUGIN_ORIGIN
-      );
-    }
+    if (pw) sendPassword(pw);
   });
 
   // プラグインからの通知
@@ -72,12 +111,12 @@
     if (e.origin !== PLUGIN_ORIGIN) return;
 
     if (e.data?.type === "password-success") {
-      iframe.remove();
+      closeLock();     // 親側で隠す
       alert("ロック解除");
     }
 
     if (e.data?.type === "password-cancel") {
-      console.log("ユーザーがキャンセル");
+      closeLock();     // キャンセルでも閉じる
     }
   });
 </script>
