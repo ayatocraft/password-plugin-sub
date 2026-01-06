@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Password Lock Parent</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    padding: 20px;
+  }
+  input, button {
+    padding: 8px;
+    margin: 4px 0;
+  }
+</style>
+</head>
+<body>
+
+<h2>パスワード設定（親HTML）</h2>
+
+<input id="pwInput" placeholder="パスワードを設定">
+<br>
+<button onclick="savePassword()">保存</button>
+<button onclick="clearPassword()">削除</button>
+
+<hr>
+
+<iframe
+  id="passwordPlugin"
+  src="https://plugin.example.com/password-widget.html"
+  style="width:360px;height:240px;border:none;">
+</iframe>
+
+<script>
+  const iframe = document.getElementById("passwordPlugin");
+  const PLUGIN_ORIGIN = "https://plugin.example.com";
+  const STORAGE_KEY = "password-lock-value";
+
+  // 起動時：保存済みパスワードをUIへ
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) pwInput.value = saved;
+
+  function savePassword() {
+    const pw = pwInput.value;
+    localStorage.setItem(STORAGE_KEY, pw);
+
+    iframe.contentWindow.postMessage(
+      { type: "init", password: pw },
+      PLUGIN_ORIGIN
+    );
+  }
+
+  function clearPassword() {
+    localStorage.removeItem(STORAGE_KEY);
+    pwInput.value = "";
+  }
+
+  // iframeが読み込まれたら自動送信（再読込対策）
+  iframe.addEventListener("load", () => {
+    const pw = localStorage.getItem(STORAGE_KEY);
+    if (pw) {
+      iframe.contentWindow.postMessage(
+        { type: "init", password: pw },
+        PLUGIN_ORIGIN
+      );
+    }
+  });
+
+  // プラグインからの通知
+  window.addEventListener("message", e => {
+    if (e.origin !== PLUGIN_ORIGIN) return;
+
+    if (e.data?.type === "password-success") {
+      iframe.remove();
+      alert("ロック解除");
+    }
+
+    if (e.data?.type === "password-cancel") {
+      console.log("ユーザーがキャンセル");
+    }
+  });
+</script>
+
+</body>
+</html>
